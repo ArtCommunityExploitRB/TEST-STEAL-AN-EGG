@@ -1,12 +1,19 @@
 --[[
-    Steal An Egg - Rayfield GUI with two steal methods
-    Методы:
-    1. Телепорт: мгновенно к яйцу, ждёт 3-4 сек, жмёт E, мгновенно обратно.
-    2. Легитный полёт: летит к яйцу с обычной скоростью (Tween), ждёт 3-4 сек, жмёт E, летит обратно.
-    GUI открывается по RightControl.
+    Steal An Egg - Ultimate Stealth Script
+    - GUI скрыт, открывается по RightControl
+    - Нет print, нет уведомлений при старте
+    - Два метода: телепорт и легитный полёт
+    - Авто-сканирование яиц при запуске
 ]]
 
+-- Отключаем возможный вывод в консоль
+getgenv().print = function() end
+getgenv().warn = function() end
+getgenv().error = function() end
+
+-- Загружаем Rayfield
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
@@ -21,6 +28,7 @@ local savedPosition = nil
 local eggList = {}
 local selectedEgg = nil
 local isWorking = false
+local guiVisible = false
 
 -- Функция сканирования яиц
 local function scanEggs()
@@ -59,15 +67,18 @@ local function scanEggs()
     end)
 end
 
--- Создание GUI
+-- Создание GUI (скрытого)
 local Window = Rayfield:CreateWindow({
     Name = "Egg Stealer",
-    LoadingTitle = "Загрузка...",
-    LoadingSubtitle = "by Assistant",
+    LoadingTitle = "",
+    LoadingSubtitle = "",
     ConfigurationSaving = { Enabled = false },
     Discord = { Enabled = false },
     KeySystem = false,
 })
+
+-- Скрываем окно сразу после создания
+Window:SetVisible(false)
 
 local Tab = Window:CreateTab("Main", 4483362458)
 
@@ -81,12 +92,7 @@ local ScanButton = Tab:CreateButton({
             table.insert(options, string.format("Яйцо %d (%.0fм)", i, (egg.Position - rootPart.Position).Magnitude))
         end
         EggDropdown:Refresh(options, true)
-        Rayfield:Notify({
-            Title = "Сканирование",
-            Content = "Найдено яиц: " .. #eggList,
-            Duration = 2,
-            Image = 4483362458,
-        })
+        -- Без уведомлений для скрытности
     end,
 })
 
@@ -109,12 +115,6 @@ local SavePosButton = Tab:CreateButton({
     Name = "Сохранить позицию",
     Callback = function()
         savedPosition = rootPart.Position
-        Rayfield:Notify({
-            Title = "Позиция",
-            Content = "Точка доставки сохранена!",
-            Duration = 2,
-            Image = 4483362458,
-        })
     end,
 })
 
@@ -131,15 +131,15 @@ local function activateEgg(egg)
             VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, nil)
         end
     end
-    task.wait(0.5) -- небольшая пауза после активации
+    task.wait(0.5)
 end
 
 -- Телепорт к точке
 local function teleportTo(pos)
-    rootPart.CFrame = CFrame.new(pos + Vector3.new(0, 2, 0)) -- чуть приподнимаем
+    rootPart.CFrame = CFrame.new(pos + Vector3.new(0, 2, 0))
 end
 
--- Легитный полёт к точке (Tween с WalkSpeed)
+-- Легитный полёт (Tween с WalkSpeed)
 local function flyTo(pos)
     local targetPos = pos + Vector3.new(0, 2, 0)
     local distance = (targetPos - rootPart.Position).Magnitude
@@ -156,31 +156,14 @@ local StealTeleportButton = Tab:CreateButton({
     Name = "Спиздить (Телепорт)",
     Callback = function()
         if isWorking then return end
-        if not selectedEgg or not savedPosition then
-            Rayfield:Notify({
-                Title = "Ошибка",
-                Content = "Выберите яйцо и сохраните позицию!",
-                Duration = 2,
-                Image = 4483362458,
-            })
-            return
-        end
+        if not selectedEgg or not savedPosition then return end
         isWorking = true
         task.spawn(function()
-            -- Телепорт к яйцу
             teleportTo(selectedEgg.Position)
             task.wait(0.3)
-            -- Активация
             activateEgg(selectedEgg)
-            -- Телепорт обратно
             teleportTo(savedPosition)
             isWorking = false
-            Rayfield:Notify({
-                Title = "Готово",
-                Content = "Яйцо украдено и доставлено!",
-                Duration = 2,
-                Image = 4483362458,
-            })
         end)
     end,
 })
@@ -190,37 +173,19 @@ local StealFlyButton = Tab:CreateButton({
     Name = "Спиздить (Легитный полёт)",
     Callback = function()
         if isWorking then return end
-        if not selectedEgg or not savedPosition then
-            Rayfield:Notify({
-                Title = "Ошибка",
-                Content = "Выберите яйцо и сохраните позицию!",
-                Duration = 2,
-                Image = 4483362458,
-            })
-            return
-        end
+        if not selectedEgg or not savedPosition then return end
         isWorking = true
         task.spawn(function()
-            -- Летим к яйцу
             flyTo(selectedEgg.Position)
             task.wait(0.3)
-            -- Активация
             activateEgg(selectedEgg)
-            -- Летим обратно
             flyTo(savedPosition)
             isWorking = false
-            Rayfield:Notify({
-                Title = "Готово",
-                Content = "Яйцо украдено и доставлено!",
-                Duration = 2,
-                Image = 4483362458,
-            })
         end)
     end,
 })
 
--- Скрытие GUI по RightControl
-local guiVisible = true
+-- Обработка клавиши RightControl для показа/скрытия GUI
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if input.KeyCode == Enum.KeyCode.RightControl and not gameProcessed then
         guiVisible = not guiVisible
@@ -228,18 +193,15 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
     end
 end)
 
--- Первоначальное сканирование
-scanEggs()
-local initialOptions = {}
-for i, egg in ipairs(eggList) do
-    table.insert(initialOptions, string.format("Яйцо %d (%.0fм)", i, (egg.Position - rootPart.Position).Magnitude))
-end
-EggDropdown:Refresh(initialOptions, true)
+-- Авто-сканирование при старте (без уведомлений)
+task.spawn(function()
+    task.wait(1) -- небольшая задержка, чтобы персонаж прогрузился
+    scanEggs()
+    local options = {}
+    for i, egg in ipairs(eggList) do
+        table.insert(options, string.format("Яйцо %d (%.0fм)", i, (egg.Position - rootPart.Position).Magnitude))
+    end
+    EggDropdown:Refresh(options, true)
+end)
 
--- Уведомление
-Rayfield:Notify({
-    Title = "Скрипт запущен",
-    Content = "Нажмите RightControl для скрытия/показа GUI",
-    Duration = 5,
-    Image = 4483362458,
-})
+-- Никаких сообщений при запуске
