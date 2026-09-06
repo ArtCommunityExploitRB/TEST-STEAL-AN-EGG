@@ -1,18 +1,7 @@
---[[
-    Steal An Egg - Ultimate Stealth Script
-    - GUI скрыт, открывается по RightControl
-    - Нет print, нет уведомлений при старте
-    - Два метода: телепорт и легитный полёт
-    - Авто-сканирование яиц при запуске
-]]
-
--- Отключаем возможный вывод в консоль
+-- Отключаем вывод в консоль
 getgenv().print = function() end
 getgenv().warn = function() end
 getgenv().error = function() end
-
--- Загружаем Rayfield
-local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
@@ -30,7 +19,84 @@ local selectedEgg = nil
 local isWorking = false
 local guiVisible = false
 
--- Функция сканирования яиц
+-- Создание скрытого GUI
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "HiddenGUI"
+screenGui.ResetOnSpawn = false
+screenGui.Enabled = false  -- скрыто при старте
+screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 260, 0, 360)
+mainFrame.Position = UDim2.new(0.1, 0, 0.2, 0)
+mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+mainFrame.BorderSizePixel = 0
+mainFrame.Active = true
+mainFrame.Draggable = true
+mainFrame.Parent = screenGui
+
+-- Заголовок
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, 0, 0, 30)
+title.Position = UDim2.new(0, 0, 0, 0)
+title.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+title.TextColor3 = Color3.fromRGB(255, 255, 255)
+title.Text = "Stealth Egg"
+title.Font = Enum.Font.SourceSansBold
+title.TextSize = 18
+title.Parent = mainFrame
+
+-- Кнопка сканирования
+local scanBtn = Instance.new("TextButton")
+scanBtn.Size = UDim2.new(1, -10, 0, 28)
+scanBtn.Position = UDim2.new(0, 5, 0, 35)
+scanBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+scanBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+scanBtn.Text = "Сканировать яйца"
+scanBtn.Parent = mainFrame
+
+-- Список яиц (ScrollingFrame)
+local listFrame = Instance.new("ScrollingFrame")
+listFrame.Size = UDim2.new(1, -10, 1, -140)
+listFrame.Position = UDim2.new(0, 5, 0, 68)
+listFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+listFrame.BorderSizePixel = 0
+listFrame.ScrollBarThickness = 5
+listFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+listFrame.Parent = mainFrame
+
+local listLayout = Instance.new("UIListLayout")
+listLayout.Parent = listFrame
+listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+listLayout.Padding = UDim.new(0, 2)
+
+-- Кнопка сохранения позиции
+local saveBtn = Instance.new("TextButton")
+saveBtn.Size = UDim2.new(1, -10, 0, 28)
+saveBtn.Position = UDim2.new(0, 5, 0, 260)
+saveBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+saveBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+saveBtn.Text = "Сохранить позицию"
+saveBtn.Parent = mainFrame
+
+-- Кнопки кражи
+local teleportBtn = Instance.new("TextButton")
+teleportBtn.Size = UDim2.new(1, -10, 0, 28)
+teleportBtn.Position = UDim2.new(0, 5, 0, 293)
+teleportBtn.BackgroundColor3 = Color3.fromRGB(0, 100, 0)
+teleportBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+teleportBtn.Text = "Спиздить (Телепорт)"
+teleportBtn.Parent = mainFrame
+
+local flyBtn = Instance.new("TextButton")
+flyBtn.Size = UDim2.new(1, -10, 0, 28)
+flyBtn.Position = UDim2.new(0, 5, 0, 326)
+flyBtn.BackgroundColor3 = Color3.fromRGB(0, 80, 120)
+flyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+flyBtn.Text = "Спиздить (Легитный полёт)"
+flyBtn.Parent = mainFrame
+
+-- Функция сканирования
 local function scanEggs()
     eggList = {}
     for _, v in ipairs(workspace:GetDescendants()) do
@@ -50,9 +116,8 @@ local function scanEggs()
             end
         end
     end
-    -- Удаление дубликатов (по позиции)
-    local unique = {}
-    local seen = {}
+    -- Удаление дубликатов
+    local unique, seen = {}, {}
     for _, egg in ipairs(eggList) do
         local key = egg.Position.X .. "_" .. egg.Position.Y .. "_" .. egg.Position.Z
         if not seen[key] then
@@ -61,66 +126,48 @@ local function scanEggs()
         end
     end
     eggList = unique
-    -- Сортировка по дистанции
-    table.sort(eggList, function(a, b)
+    table.sort(eggList, function(a,b)
         return (a.Position - rootPart.Position).Magnitude < (b.Position - rootPart.Position).Magnitude
     end)
+    -- Обновление списка
+    for _, child in ipairs(listFrame:GetChildren()) do
+        if child:IsA("TextButton") then child:Destroy() end
+    end
+    for i, egg in ipairs(eggList) do
+        local btn = Instance.new("TextButton")
+        btn.Size = UDim2.new(1, -10, 0, 24)
+        btn.Position = UDim2.new(0, 5, 0, (i-1)*26)
+        btn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+        btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        btn.Text = string.format("Яйцо %d (%.0fм)", i, (egg.Position - rootPart.Position).Magnitude)
+        btn.Parent = listFrame
+        btn.LayoutOrder = i
+        btn.MouseButton1Click:Connect(function()
+            selectedEgg = egg
+            -- Подсветка выбранного
+            for _, b in ipairs(listFrame:GetChildren()) do
+                if b:IsA("TextButton") then
+                    b.BackgroundColor3 = b == btn and Color3.fromRGB(0, 120, 215) or Color3.fromRGB(50, 50, 50)
+                end
+            end
+        end)
+    end
+    listFrame.CanvasSize = UDim2.new(0, 0, 0, #eggList * 26)
 end
 
--- Создание GUI (скрытого)
-local Window = Rayfield:CreateWindow({
-    Name = "Egg Stealer",
-    LoadingTitle = "",
-    LoadingSubtitle = "",
-    ConfigurationSaving = { Enabled = false },
-    Discord = { Enabled = false },
-    KeySystem = false,
-})
+-- Привязка событий
+scanBtn.MouseButton1Click:Connect(scanEggs)
 
--- Скрываем окно сразу после создания
-Window:SetVisible(false)
+saveBtn.MouseButton1Click:Connect(function()
+    savedPosition = rootPart.Position
+    saveBtn.Text = "Позиция сохранена!"
+    task.wait(1)
+    saveBtn.Text = "Сохранить позицию"
+end)
 
-local Tab = Window:CreateTab("Main", 4483362458)
-
--- Кнопка сканирования
-local ScanButton = Tab:CreateButton({
-    Name = "Сканировать яйца",
-    Callback = function()
-        scanEggs()
-        local options = {}
-        for i, egg in ipairs(eggList) do
-            table.insert(options, string.format("Яйцо %d (%.0fм)", i, (egg.Position - rootPart.Position).Magnitude))
-        end
-        EggDropdown:Refresh(options, true)
-        -- Без уведомлений для скрытности
-    end,
-})
-
--- Дропдаун для выбора яйца
-local EggDropdown = Tab:CreateDropdown({
-    Name = "Выберите яйцо",
-    Options = {},
-    CurrentOption = "",
-    Flag = "SelectedEgg",
-    Callback = function(Value)
-        local num = Value:match("#(%d+)")
-        if num then
-            selectedEgg = eggList[tonumber(num)]
-        end
-    end,
-})
-
--- Кнопка сохранения позиции
-local SavePosButton = Tab:CreateButton({
-    Name = "Сохранить позицию",
-    Callback = function()
-        savedPosition = rootPart.Position
-    end,
-})
-
--- Функция активации яйца (ждёт 3-4 сек и жмёт E)
+-- Функция активации
 local function activateEgg(egg)
-    task.wait(math.random(3, 4)) -- ожидание
+    task.wait(math.random(3, 4))
     local prompt = egg:FindFirstChildOfClass("ProximityPrompt")
     if prompt then
         if fireproximityprompt then
@@ -134,74 +181,52 @@ local function activateEgg(egg)
     task.wait(0.5)
 end
 
--- Телепорт к точке
+-- Телепорт
 local function teleportTo(pos)
     rootPart.CFrame = CFrame.new(pos + Vector3.new(0, 2, 0))
 end
 
--- Легитный полёт (Tween с WalkSpeed)
+-- Легитный полёт
 local function flyTo(pos)
-    local targetPos = pos + Vector3.new(0, 2, 0)
-    local distance = (targetPos - rootPart.Position).Magnitude
+    local target = pos + Vector3.new(0, 2, 0)
+    local dist = (target - rootPart.Position).Magnitude
     local speed = humanoid.WalkSpeed or 16
-    local duration = distance / speed
-    local tweenInfo = TweenInfo.new(duration, Enum.EasingStyle.Linear)
-    local tween = TweenService:Create(rootPart, tweenInfo, {CFrame = CFrame.new(targetPos)})
+    local tween = TweenService:Create(rootPart, TweenInfo.new(dist/speed, Enum.EasingStyle.Linear), {CFrame = CFrame.new(target)})
     tween:Play()
     tween.Completed:Wait()
 end
 
--- Кнопка "Спиздить (Телепорт)"
-local StealTeleportButton = Tab:CreateButton({
-    Name = "Спиздить (Телепорт)",
-    Callback = function()
-        if isWorking then return end
-        if not selectedEgg or not savedPosition then return end
-        isWorking = true
-        task.spawn(function()
-            teleportTo(selectedEgg.Position)
-            task.wait(0.3)
-            activateEgg(selectedEgg)
-            teleportTo(savedPosition)
-            isWorking = false
-        end)
-    end,
-})
+-- Обработчики кнопок кражи
+teleportBtn.MouseButton1Click:Connect(function()
+    if isWorking or not selectedEgg or not savedPosition then return end
+    isWorking = true
+    task.spawn(function()
+        teleportTo(selectedEgg.Position)
+        task.wait(0.3)
+        activateEgg(selectedEgg)
+        teleportTo(savedPosition)
+        isWorking = false
+    end)
+end)
 
--- Кнопка "Спиздить (Легитный полёт)"
-local StealFlyButton = Tab:CreateButton({
-    Name = "Спиздить (Легитный полёт)",
-    Callback = function()
-        if isWorking then return end
-        if not selectedEgg or not savedPosition then return end
-        isWorking = true
-        task.spawn(function()
-            flyTo(selectedEgg.Position)
-            task.wait(0.3)
-            activateEgg(selectedEgg)
-            flyTo(savedPosition)
-            isWorking = false
-        end)
-    end,
-})
+flyBtn.MouseButton1Click:Connect(function()
+    if isWorking or not selectedEgg or not savedPosition then return end
+    isWorking = true
+    task.spawn(function()
+        flyTo(selectedEgg.Position)
+        task.wait(0.3)
+        activateEgg(selectedEgg)
+        flyTo(savedPosition)
+        isWorking = false
+    end)
+end)
 
--- Обработка клавиши RightControl для показа/скрытия GUI
+-- Открытие/скрытие GUI по RightControl
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if input.KeyCode == Enum.KeyCode.RightControl and not gameProcessed then
         guiVisible = not guiVisible
-        Window:SetVisible(guiVisible)
+        screenGui.Enabled = guiVisible
     end
 end)
 
--- Авто-сканирование при старте (без уведомлений)
-task.spawn(function()
-    task.wait(1) -- небольшая задержка, чтобы персонаж прогрузился
-    scanEggs()
-    local options = {}
-    for i, egg in ipairs(eggList) do
-        table.insert(options, string.format("Яйцо %d (%.0fм)", i, (egg.Position - rootPart.Position).Magnitude))
-    end
-    EggDropdown:Refresh(options, true)
-end)
-
--- Никаких сообщений при запуске
+-- Никаких действий при старте, всё по требованию
